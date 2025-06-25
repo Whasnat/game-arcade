@@ -47,8 +47,8 @@
             transition: max-width 0.4s ease-in-out; /* Smooth transition for resizing */
         }
 
-        /* Make container wider for Breakout game */
-        .container.breakout-active {
+        /* Make container wider for certain games */
+        .container.wide-game-active {
             max-width: 800px;
         }
 
@@ -210,6 +210,13 @@
         }
 
         /* --- Specific Game Styles --- */
+        canvas {
+            background-color: #0d121e;
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+        }
+
         /* Snake */
         #snake-board {
             display: grid;
@@ -254,38 +261,20 @@
         #whac-a-mole-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         .mole-hole { width: 120px; height: 120px; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><path d="M0 50 C 20 20, 80 20, 100 50 Z" fill="%236b4f3a"/></svg>'); background-size: 100% 100%; background-position: bottom; position: relative; overflow: hidden; }
         .mole {
-            width: 70%;
-            height: 70%;
-            background-color: #c5a98b;
-            border: 2px solid #5a3d2b;
-            border-radius: 50%;
-            position: absolute;
-            bottom: 5px;
-            left: 15%;
-            transition: transform 0.2s ease-out;
-            transform: translateY(100%);
-            cursor: pointer;
+            width: 70%; height: 70%; background-color: #c5a98b; border: 2px solid #5a3d2b; border-radius: 50%;
+            position: absolute; bottom: 5px; left: 15%;
+            transition: transform 0.2s ease-out; transform: translateY(100%); cursor: pointer;
         }
         .mole.up { transform: translateY(0); }
         .mole::before, .mole::after {
-            content: '';
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background-color: #000;
-            border-radius: 50%;
-            top: 30%;
+            content: ''; position: absolute; width: 8px; height: 8px;
+            background-color: #000; border-radius: 50%; top: 30%;
         }
         .mole::before { left: 30%; }
         .mole::after { right: 30%; }
 
-
-        /* Breakout */
-        #breakout-canvas { 
-            background-color: #0d121e; 
-            border-radius: 10px;
-            width: 100%;
-            height: auto;
+        /* Canvas Games */
+        #breakout-canvas, #superjumper-canvas, #speedracer-canvas { 
             aspect-ratio: 4 / 3;
         }
         
@@ -306,6 +295,8 @@
                 <button class="game-button" data-game="tileflip">Tile Flip</button>
                 <button class="game-button" data-game="whac-a-mole">Whac-A-Mole</button>
                 <button class="game-button" data-game="breakout">Breakout</button>
+                <button class="game-button" data-game="superjumper">Super Jumper</button>
+                <button class="game-button" data-game="speedracer">Speed Racer</button>
             </div>
         </div>
 
@@ -322,7 +313,7 @@
         </div>
         
         <footer>
-            <p>Built by Waliul Hasnat</p>
+            <p>Built Rahat</p>
         </footer>
     </div>
 
@@ -334,7 +325,6 @@
             const screens = document.querySelectorAll('.screen');
             const gameButtons = document.querySelectorAll('.game-button');
             const backButton = document.querySelector('.back-button');
-            const gameScreen = document.getElementById('game-screen');
             const gameContent = document.getElementById('game-content');
             const gameTitle = document.querySelector('.game-title');
             const resetButton = document.querySelector('.reset-button');
@@ -352,14 +342,13 @@
                     const gameId = button.dataset.game;
                     activeGame = gameId;
 
-                    // Handle container resizing for Breakout
-                    mainContainer.classList.remove('breakout-active');
-                    if (gameId === 'breakout') {
-                        mainContainer.classList.add('breakout-active');
+                    mainContainer.classList.remove('wide-game-active');
+                    if (gameId === 'breakout' || gameId === 'speedracer') {
+                        mainContainer.classList.add('wide-game-active');
                     }
 
                     gameTitle.textContent = button.textContent;
-                    gameContent.innerHTML = ''; // Clear previous game
+                    gameContent.innerHTML = ''; 
                     resetButton.style.display = 'block';
                     
                     switch (gameId) {
@@ -368,6 +357,8 @@
                         case 'tileflip': initTileFlip(); break;
                         case 'whac-a-mole': initWhacAMole(); break;
                         case 'breakout': initBreakout(); break;
+                        case 'superjumper': initSuperJumper(); break;
+                        case 'speedracer': initSpeedRacer(); break;
                     }
                     showScreen('game-screen');
                 });
@@ -375,9 +366,9 @@
 
             backButton.addEventListener('click', () => {
                 if (activeGame && window[activeGame + 'Cleanup']) {
-                    window[activeGame + 'Cleanup'](); // Call game-specific cleanup
+                    window[activeGame + 'Cleanup']();
                 }
-                mainContainer.classList.remove('breakout-active'); // Always remove on back
+                mainContainer.classList.remove('wide-game-active');
                 activeGame = null;
                 showScreen('main-menu');
             });
@@ -388,15 +379,29 @@
                 }
             });
 
-            // --- Game Logic ---
+            // --- Utility for Canvas Games ---
+            function setupCanvasGame(canvasId, gameInfoHtml, instructionsHtml, gameRunnerClass) {
+                gameContent.innerHTML = `${gameInfoHtml}<canvas id="${canvasId}"></canvas>${instructionsHtml}`;
+                const canvas = document.getElementById(canvasId);
+                let gameInstance;
+
+                function setup() {
+                    if (gameInstance) gameInstance.stop();
+                    // Delay setup to allow canvas to be sized by CSS
+                    setTimeout(() => {
+                        gameInstance = new gameRunnerClass(canvas, setup);
+                        gameInstance.start();
+                    }, 0);
+                }
+
+                window[canvasId.split('-')[0] + 'Reset'] = setup;
+                window[canvasId.split('-')[0] + 'Cleanup'] = () => { if (gameInstance) gameInstance.stop(); };
+                setup();
+            }
             
             // --- SNAKE ---
             function initSnake() {
-                gameContent.innerHTML = `
-                    <div class="game-info"><span>Score: <span id="snake-score">0</span></span></div>
-                    <div id="snake-board"></div>
-                    <p class="instructions">Use arrow keys to move.</p>`;
-                
+                gameContent.innerHTML = `<div class="game-info"><span>Score: <span id="snake-score">0</span></span></div><div id="snake-board"></div><p class="instructions">Use arrow keys to move.</p>`;
                 const board = document.getElementById('snake-board');
                 const scoreEl = document.getElementById('snake-score');
                 const gridSize = 20;
@@ -404,509 +409,285 @@
 
                 function setup() {
                     board.innerHTML = '';
-                    for (let i = 0; i < gridSize * gridSize; i++) {
-                        const cell = document.createElement('div');
-                        cell.classList.add('snake-cell');
-                        board.appendChild(cell);
-                    }
-                    snake = [{ x: 10, y: 10 }];
-                    food = generateFood();
-                    direction = { x: 0, y: -1 };
-                    score = 0;
-                    speed = 200;
-                    isGameOver = false;
+                    for (let i = 0; i < gridSize * gridSize; i++) { board.appendChild(document.createElement('div')); }
+                    snake = [{ x: 10, y: 10 }]; food = generateFood(); direction = { x: 0, y: -1 }; score = 0; speed = 200; isGameOver = false;
                     scoreEl.textContent = '0';
                     if (gameInterval) clearInterval(gameInterval);
                     gameInterval = setInterval(gameLoop, speed);
                     draw();
                 }
-
                 function draw() {
                     const cells = board.children;
-                    for(const cell of cells) {
-                        cell.className = 'snake-cell';
-                    }
-                    snake.forEach((seg, i) => {
-                        const index = seg.y * gridSize + seg.x;
-                        if(cells[index]) cells[index].classList.add(i === 0 ? 'snake-head' : 'snake-body');
-                    });
-                    const foodIndex = food.y * gridSize + food.x;
-                    if(cells[foodIndex]) cells[foodIndex].classList.add('snake-food');
+                    for (const cell of cells) { cell.className = 'snake-cell'; }
+                    snake.forEach((seg, i) => { const index = seg.y * gridSize + seg.x; if(cells[index]) cells[index].classList.add(i === 0 ? 'snake-head' : 'snake-body'); });
+                    const foodIndex = food.y * gridSize + food.x; if(cells[foodIndex]) cells[foodIndex].classList.add('snake-food');
                 }
-
                 function gameLoop() {
                     if (isGameOver) return;
-                    const head = { ...snake[0] };
-                    head.x += direction.x;
-                    head.y += direction.y;
-
-                    // Collision checks
-                    if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize || snake.some(seg => seg.x === head.x && seg.y === head.y)) {
-                        gameOver();
-                        return;
-                    }
+                    const head = { ...snake[0] }; head.x += direction.x; head.y += direction.y;
+                    if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize || snake.some(seg => seg.x === head.x && seg.y === head.y)) { gameOver(); return; }
                     snake.unshift(head);
-                    if (head.x === food.x && head.y === food.y) {
-                        score++;
-                        scoreEl.textContent = score;
-                        food = generateFood();
-                        speed = Math.max(50, speed * 0.95);
-                        clearInterval(gameInterval);
-                        gameInterval = setInterval(gameLoop, speed);
-                    } else {
-                        snake.pop();
-                    }
+                    if (head.x === food.x && head.y === food.y) { score++; scoreEl.textContent = score; food = generateFood(); speed = Math.max(50, speed * 0.95); clearInterval(gameInterval); gameInterval = setInterval(gameLoop, speed);
+                    } else { snake.pop(); }
                     draw();
                 }
-                
                 function generateFood() {
-                    let newFood;
-                    do {
-                        newFood = { x: Math.floor(Math.random() * gridSize), y: Math.floor(Math.random() * gridSize) };
-                    } while (snake.some(seg => seg.x === newFood.x && seg.y === newFood.y));
-                    return newFood;
+                    let newFood; do { newFood = { x: Math.floor(Math.random() * gridSize), y: Math.floor(Math.random() * gridSize) }; } while (snake.some(seg => seg.x === newFood.x && seg.y === newFood.y)); return newFood;
                 }
-
-                function gameOver() {
-                    isGameOver = true;
-                    clearInterval(gameInterval);
-                    const overlay = document.createElement('div');
-                    overlay.className = 'overlay';
-                    overlay.innerHTML = `<h3>Game Over</h3><p>Final Score: ${score}</p>`;
-                    gameContent.appendChild(overlay);
-                }
-
-                function handleKeydown(e) {
-                    if (!activeGame === 'snake') return;
-                    switch(e.key) {
-                        case 'ArrowUp': if(direction.y === 0) direction = {x: 0, y: -1}; break;
-                        case 'ArrowDown': if(direction.y === 0) direction = {x: 0, y: 1}; break;
-                        case 'ArrowLeft': if(direction.x === 0) direction = {x: -1, y: 0}; break;
-                        case 'ArrowRight': if(direction.x === 0) direction = {x: 1, y: 0}; break;
-                    }
-                }
-                
-                window.snakeReset = setup;
-                window.snakeCleanup = () => {
-                    clearInterval(gameInterval);
-                    document.removeEventListener('keydown', handleKeydown);
-                };
-                
-                document.addEventListener('keydown', handleKeydown);
-                setup();
+                function gameOver() { isGameOver = true; clearInterval(gameInterval); gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>Game Over</h3><p>Final Score: ${score}</p></div>`); }
+                function handleKeydown(e) { if (activeGame !== 'snake') return; switch(e.key) { case 'ArrowUp': if(direction.y === 0) direction = {x: 0, y: -1}; break; case 'ArrowDown': if(direction.y === 0) direction = {x: 0, y: 1}; break; case 'ArrowLeft': if(direction.x === 0) direction = {x: -1, y: 0}; break; case 'ArrowRight': if(direction.x === 0) direction = {x: 1, y: 0}; break; } }
+                window.snakeReset = setup; window.snakeCleanup = () => { clearInterval(gameInterval); document.removeEventListener('keydown', handleKeydown); };
+                document.addEventListener('keydown', handleKeydown); setup();
             }
 
             // --- TIC-TAC-TOE ---
             function initTicTacToe() {
-                gameContent.innerHTML = `
-                    <div class="game-info"><span id="tictactoe-status"></span></div>
-                    <div id="tictactoe-board"></div>
-                    <p class="instructions">First player to get 3 in a row wins.</p>`;
-
-                const boardEl = document.getElementById('tictactoe-board');
-                const statusEl = document.getElementById('tictactoe-status');
-                let board, isXNext, winner;
-
-                function setup() {
-                    board = Array(9).fill(null);
-                    isXNext = true;
-                    winner = null;
-                    render();
-                }
-                
+                gameContent.innerHTML = `<div class="game-info"><span id="tictactoe-status"></span></div><div id="tictactoe-board"></div><p class="instructions">First player to get 3 in a row wins.</p>`;
+                const boardEl = document.getElementById('tictactoe-board'); const statusEl = document.getElementById('tictactoe-status'); let board, isXNext, winner;
+                function setup() { board = Array(9).fill(null); isXNext = true; winner = null; render(); }
                 function render() {
                     boardEl.innerHTML = '';
-                    board.forEach((val, i) => {
-                        const cell = document.createElement('div');
-                        cell.className = 'tictactoe-cell';
-                        if (val) {
-                            const span = document.createElement('span');
-                            span.textContent = val;
-                            span.className = val === 'X' ? 'x' : 'o';
-                            cell.appendChild(span);
-                        } else {
-                           cell.addEventListener('click', () => handleClick(i), { once: true });
-                        }
-                        boardEl.appendChild(cell);
-                    });
+                    board.forEach((val, i) => { const cell = document.createElement('div'); cell.className = 'tictactoe-cell'; if (val) { const span = document.createElement('span'); span.textContent = val; span.className = val === 'X' ? 'x' : 'o'; cell.appendChild(span); } else { cell.addEventListener('click', () => handleClick(i), { once: true }); } boardEl.appendChild(cell); });
                     updateStatus();
                 }
-
-                function handleClick(i) {
-                    if (winner || board[i]) return;
-                    board[i] = isXNext ? 'X' : 'O';
-                    isXNext = !isXNext;
-                    winner = calculateWinner(board);
-                    render();
-                }
-                
-                function updateStatus() {
-                    if (winner) statusEl.textContent = `Winner: ${winner}!`;
-                    else if (board.every(Boolean)) statusEl.textContent = "It's a Draw!";
-                    else statusEl.textContent = `Next player: ${isXNext ? 'X' : 'O'}`;
-                }
-                
-                function calculateWinner(squares) {
-                    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-                    for (let i = 0; i < lines.length; i++) {
-                        const [a, b, c] = lines[i];
-                        if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) return squares[a];
-                    }
-                    return null;
-                }
-                
-                window.tictactoeReset = setup;
-                setup();
+                function handleClick(i) { if (winner || board[i]) return; board[i] = isXNext ? 'X' : 'O'; isXNext = !isXNext; winner = calculateWinner(board); render(); }
+                function updateStatus() { if (winner) statusEl.textContent = `Winner: ${winner}!`; else if (board.every(Boolean)) statusEl.textContent = "It's a Draw!"; else statusEl.textContent = `Next player: ${isXNext ? 'X' : 'O'}`; }
+                function calculateWinner(sq) { const l = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]; for (let i=0; i<l.length; i++) { const [a,b,c]=l[i]; if(sq[a]&&sq[a]===sq[b]&&sq[a]===sq[c]) return sq[a];} return null; }
+                window.tictactoeReset = setup; setup();
             }
 
             // --- TILE FLIP ---
             function initTileFlip() {
-                gameContent.innerHTML = `
-                    <div class="game-info"><span>Moves: <span id="tileflip-moves">0</span></span></div>
-                    <div id="tileflip-board"></div>
-                    <p class="instructions">Match all the pairs of cards.</p>`;
-                
-                const boardEl = document.getElementById('tileflip-board');
-                const movesEl = document.getElementById('tileflip-moves');
-                const emojis = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
-                let tiles, flipped, moves, lockBoard;
-
-                function setup() {
-                    const tileSet = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
-                    tiles = tileSet.map((emoji, i) => ({ id: i, emoji, isFlipped: false, isMatched: false }));
-                    flipped = [];
-                    moves = 0;
-                    lockBoard = false;
-                    movesEl.textContent = '0';
-                    render();
-                }
-
-                function render() {
-                    boardEl.innerHTML = '';
-                    tiles.forEach(tile => {
-                        const tileContainer = document.createElement('div');
-                        tileContainer.className = 'tile-container';
-                        if (tile.isFlipped) tileContainer.classList.add('flipped');
-                        if (tile.isMatched) tileContainer.classList.add('matched');
-
-                        tileContainer.innerHTML = `
-                            <div class="tile-inner">
-                                <div class="tile-face tile-front"></div>
-                                <div class="tile-face tile-back">${tile.emoji}</div>
-                            </div>`;
-                        
-                        if (!tile.isFlipped && !tile.isMatched) {
-                            tileContainer.addEventListener('click', () => handleTileClick(tile));
-                        }
-                        boardEl.appendChild(tileContainer);
-                    });
-                }
-
-                function handleTileClick(clickedTile) {
-                    if (lockBoard || flipped.includes(clickedTile)) return;
-                    clickedTile.isFlipped = true;
-                    flipped.push(clickedTile);
-                    render();
-                    if (flipped.length === 2) {
-                        lockBoard = true;
-                        moves++;
-                        movesEl.textContent = moves;
-                        checkForMatch();
-                    }
-                }
-
-                function checkForMatch() {
-                    const [first, second] = flipped;
-                    if (first.emoji === second.emoji) {
-                        first.isMatched = true;
-                        second.isMatched = true;
-                        flipped = [];
-                        lockBoard = false;
-                        if (tiles.every(t => t.isMatched)) {
-                            setTimeout(() => {
-                                const overlay = document.createElement('div');
-                                overlay.className = 'overlay';
-                                overlay.innerHTML = `<h3>You Win!</h3><p>Completed in ${moves} moves.</p>`;
-                                gameContent.appendChild(overlay);
-                            }, 500);
-                        }
-                    } else {
-                        setTimeout(() => {
-                            first.isFlipped = false;
-                            second.isFlipped = false;
-                            flipped = [];
-                            lockBoard = false;
-                            render();
-                        }, 1000);
-                    }
-                    render();
-                }
-
-                window.tileflipReset = setup;
-                setup();
+                gameContent.innerHTML = `<div class="game-info"><span>Moves: <span id="tileflip-moves">0</span></span></div><div id="tileflip-board"></div><p class="instructions">Match all the pairs of cards.</p>`;
+                const boardEl = document.getElementById('tileflip-board'); const movesEl = document.getElementById('tileflip-moves'); const emojis = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼']; let tiles, flipped, moves, lockBoard;
+                function setup() { const tileSet = [...emojis, ...emojis].sort(() => Math.random() - 0.5); tiles = tileSet.map((emoji, i) => ({ id: i, emoji, isFlipped: false, isMatched: false })); flipped = []; moves = 0; lockBoard = false; movesEl.textContent = '0'; render(); }
+                function render() { boardEl.innerHTML = ''; tiles.forEach(tile => { const tc = document.createElement('div'); tc.className = 'tile-container'; if (tile.isFlipped) tc.classList.add('flipped'); if (tile.isMatched) tc.classList.add('matched'); tc.innerHTML = `<div class="tile-inner"><div class="tile-face tile-front"></div><div class="tile-face tile-back">${tile.emoji}</div></div>`; if (!tile.isFlipped && !tile.isMatched) { tc.addEventListener('click', () => handleTileClick(tile)); } boardEl.appendChild(tc); }); }
+                function handleTileClick(clickedTile) { if (lockBoard || flipped.includes(clickedTile)) return; clickedTile.isFlipped = true; flipped.push(clickedTile); render(); if (flipped.length === 2) { lockBoard = true; moves++; movesEl.textContent = moves; checkForMatch(); } }
+                function checkForMatch() { const [first, second] = flipped; if (first.emoji === second.emoji) { first.isMatched = true; second.isMatched = true; flipped = []; lockBoard = false; if (tiles.every(t => t.isMatched)) { setTimeout(() => { gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>You Win!</h3><p>Completed in ${moves} moves.</p></div>`); }, 500); } } else { setTimeout(() => { first.isFlipped = false; second.isFlipped = false; flipped = []; lockBoard = false; render(); }, 1000); } }
+                window.tileflipReset = setup; setup();
             }
 
             // --- WHAC-A-MOLE ---
             function initWhacAMole() {
-                gameContent.innerHTML = `
-                    <div class="game-info">
-                        <span>Score: <span id="mole-score">0</span></span>
-                        <span>Time: <span id="mole-time">20</span>s</span>
-                    </div>
-                    <div id="whac-a-mole-board"></div>
-                    <div id="whac-a-mole-starter">
-                         <button class="start-button">Start Game</button>
-                    </div>`;
-                
+                gameContent.innerHTML = `<div class="game-info"><span>Score: <span id="mole-score">0</span></span><span>Time: <span id="mole-time">20</span>s</span></div><div id="whac-a-mole-board"></div><div id="whac-a-mole-starter"><button class="start-button">Start Game</button></div>`;
                 resetButton.style.display = 'none';
-
-                const boardEl = document.getElementById('whac-a-mole-board');
-                const starterEl = document.getElementById('whac-a-mole-starter');
-                const startButton = starterEl.querySelector('.start-button');
-                const scoreEl = document.getElementById('mole-score');
-                const timeEl = document.getElementById('mole-time');
+                const boardEl = document.getElementById('whac-a-mole-board'); const starterEl = document.getElementById('whac-a-mole-starter'); const startButton = starterEl.querySelector('.start-button'); const scoreEl = document.getElementById('mole-score'); const timeEl = document.getElementById('mole-time');
                 let holes, score, timeLeft, moleTimeouts, gameTimer, isGameActive;
-
                 function setup() {
-                    boardEl.innerHTML = '';
-                    holes = [];
-                    for (let i = 0; i < 9; i++) {
-                        const hole = document.createElement('div');
-                        hole.className = 'mole-hole';
-                        const mole = document.createElement('div');
-                        mole.className = 'mole';
-                        mole.addEventListener('click', () => whack(i));
-                        hole.appendChild(mole);
-                        boardEl.appendChild(hole);
-                        holes.push(mole);
-                    }
-                    score = 0;
-                    timeLeft = 20;
-                    isGameActive = false;
-                    moleTimeouts = [];
-                    if (gameTimer) clearInterval(gameTimer);
-                    scoreEl.textContent = '0';
-                    timeEl.textContent = '20';
-                    starterEl.style.display = 'flex';
-                    startButton.textContent = 'Start Game';
+                    boardEl.innerHTML = ''; holes = [];
+                    for (let i = 0; i < 9; i++) { const hole = document.createElement('div'); hole.className = 'mole-hole'; const mole = document.createElement('div'); mole.className = 'mole'; mole.addEventListener('click', () => whack(i)); hole.appendChild(mole); boardEl.appendChild(hole); holes.push(mole); }
+                    score = 0; timeLeft = 20; isGameActive = false; moleTimeouts = []; if (gameTimer) clearInterval(gameTimer);
+                    scoreEl.textContent = '0'; timeEl.textContent = '20'; starterEl.style.display = 'flex'; startButton.textContent = 'Start Game';
                 }
-
-                function startGame() {
-                    setup();
-                    isGameActive = true;
-                    starterEl.style.display = 'none';
-                    popRandomMole();
-                    gameTimer = setInterval(() => {
-                        timeLeft--;
-                        timeEl.textContent = timeLeft;
-                        if (timeLeft <= 0) {
-                            endGame();
-                        }
-                    }, 1000);
-                }
-
-                function popRandomMole() {
-                    if (!isGameActive) return;
-                    const availableHoles = holes.filter(h => !h.classList.contains('up'));
-                    if (availableHoles.length === 0) return;
-                    const mole = availableHoles[Math.floor(Math.random() * availableHoles.length)];
-                    mole.classList.add('up');
-                    const hideTimeout = setTimeout(() => {
-                        mole.classList.remove('up');
-                    }, Math.random() * 600 + 500);
-                    const nextPop = setTimeout(popRandomMole, Math.random() * 800 + 400);
-                    moleTimeouts.push(hideTimeout, nextPop);
-                }
-
-                function whack(index) {
-                    const mole = holes[index];
-                    if (!isGameActive || !mole.classList.contains('up')) return;
-                    score++;
-                    scoreEl.textContent = score;
-                    mole.classList.remove('up');
-                }
-
-                function endGame() {
-                    isGameActive = false;
-                    clearInterval(gameTimer);
-                    moleTimeouts.forEach(clearTimeout);
-                    starterEl.style.display = 'flex';
-                    startButton.textContent = 'Play Again?';
-                    
-                    const overlay = document.createElement('div');
-                    overlay.className = 'overlay';
-                    overlay.innerHTML = `<h3>Time's Up!</h3><p>Final Score: ${score}</p>`;
-                    gameContent.appendChild(overlay);
-                    overlay.addEventListener('click', () => overlay.remove());
-                }
-
-                startButton.addEventListener('click', startGame);
-                window.whacamoleReset = startGame;
-                window.whacamoleCleanup = () => {
-                     isGameActive = false;
-                     clearInterval(gameTimer);
-                     moleTimeouts.forEach(clearTimeout);
-                };
-                setup();
+                function startGame() { isGameActive = true; starterEl.style.display = 'none'; score=0; scoreEl.textContent = score; timeLeft=20; timeEl.textContent = timeLeft; popRandomMole(); gameTimer = setInterval(() => { timeLeft--; timeEl.textContent = timeLeft; if (timeLeft <= 0) endGame(); }, 1000); }
+                function popRandomMole() { if (!isGameActive) return; const available = holes.filter(h => !h.classList.contains('up')); if (available.length === 0) return; const mole = available[Math.floor(Math.random() * available.length)]; mole.classList.add('up'); const hideTimeout = setTimeout(() => { mole.classList.remove('up'); }, Math.random() * 600 + 500); const nextPop = setTimeout(popRandomMole, Math.random() * 800 + 400); moleTimeouts.push(hideTimeout, nextPop); }
+                function whack(index) { const mole = holes[index]; if (!isGameActive || !mole.classList.contains('up')) return; score++; scoreEl.textContent = score; mole.classList.remove('up'); }
+                function endGame() { isGameActive = false; clearInterval(gameTimer); moleTimeouts.forEach(clearTimeout); starterEl.style.display = 'flex'; startButton.textContent = 'Play Again?'; gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>Time's Up!</h3><p>Final Score: ${score}</p></div>`); }
+                startButton.addEventListener('click', startGame); window.whacamoleReset = startGame; window.whacamoleCleanup = () => { isGameActive = false; clearInterval(gameTimer); moleTimeouts.forEach(clearTimeout); }; setup();
             }
 
             // --- BREAKOUT ---
             function initBreakout() {
-                gameContent.innerHTML = `
-                    <div class="game-info">
-                        <span>Score: <span id="breakout-score">0</span></span>
-                        <span>Lives: <span id="breakout-lives">3</span></span>
-                    </div>
-                    <canvas id="breakout-canvas"></canvas>
-                    <p class="instructions">Use mouse or arrow keys to move the paddle.</p>`;
-
-                const canvas = document.getElementById('breakout-canvas');
-                const scoreEl = document.getElementById('breakout-score');
-                const livesEl = document.getElementById('breakout-lives');
-                
-                let gameInstance;
-
-                function setup() {
-                    if(gameInstance) gameInstance.stop();
-                    scoreEl.textContent = '0';
-                    livesEl.textContent = '3';
-                    
-                    // Delay setup to allow canvas to be sized by CSS
-                    setTimeout(() => {
-                        gameInstance = new BreakoutRunner(canvas, scoreEl, livesEl, setup);
-                        gameInstance.start();
-                    }, 0);
-                }
-                
                 class BreakoutRunner {
-                    constructor(canvas, scoreEl, livesEl, onGameOver) {
-                        this.canvas = canvas;
-                        this.ctx = canvas.getContext('2d');
-                        this.scoreEl = scoreEl;
-                        this.livesEl = livesEl;
-                        this.onGameOver = onGameOver;
-                        this.animationFrameId = null;
-                        this.keyDownHandler = this.keyDownHandler.bind(this);
-                        this.keyUpHandler = this.keyUpHandler.bind(this);
-                        this.mouseMoveHandler = this.mouseMoveHandler.bind(this);
-                    }
-                    
+                    constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.keyDownHandler = this.keyDownHandler.bind(this); this.keyUpHandler = this.keyUpHandler.bind(this); this.mouseMoveHandler = this.mouseMoveHandler.bind(this); }
+                    start() { this.setupGameObjects(); document.addEventListener('keydown', this.keyDownHandler); document.addEventListener('keyup', this.keyUpHandler); document.addEventListener('mousemove', this.mouseMoveHandler); this.draw(); }
+                    stop() { cancelAnimationFrame(this.animationFrameId); document.removeEventListener('keydown', this.keyDownHandler); document.removeEventListener('keyup', this.keyUpHandler); document.removeEventListener('mousemove', this.mouseMoveHandler); }
                     setupGameObjects() {
-                         const dpr = window.devicePixelRatio || 1;
-                        const rect = this.canvas.getBoundingClientRect();
-                        this.canvas.width = rect.width * dpr;
-                        this.canvas.height = rect.height * dpr;
-                        this.ctx.scale(dpr, dpr);
-                        this.width = rect.width;
-                        this.height = rect.height;
-
-                        this.score = 0;
-                        this.lives = 3;
-                        this.ball = { x: this.width / 2, y: this.height - 30, radius: 8, dx: 4, dy: -4 };
-                        this.paddle = { height: 12, width: this.width * 0.25, x: (this.width - (this.width*0.25)) / 2 };
-                        this.brickRowCount = 5;
-                        this.brickColumnCount = 7;
-                        this.brickWidth = this.width * 0.11;
-                        this.brickHeight = 20;
-                        this.brickPadding = 10;
-                        this.brickOffsetTop = 40;
-                        this.brickOffsetLeft = (this.width - (this.brickColumnCount * (this.brickWidth + this.brickPadding))) / 2 + this.brickPadding/2;
-                        
-                        this.bricks = [];
-                        for (let c = 0; c < this.brickColumnCount; c++) {
-                            this.bricks[c] = [];
-                            for (let r = 0; r < this.brickRowCount; r++) {
-                                this.bricks[c][r] = { x: 0, y: 0, status: 1 };
-                            }
-                        }
+                        const dpr = window.devicePixelRatio || 1; const rect = this.canvas.getBoundingClientRect(); this.canvas.width = rect.width * dpr; this.canvas.height = rect.height * dpr; this.ctx.scale(dpr, dpr); this.width = rect.width; this.height = rect.height; this.score = 0; this.lives = 3; this.ball = { x: this.width/2, y: this.height-30, radius: 8, dx: 4, dy: -4 }; this.paddle = { height: 12, width: this.width*0.25, x: (this.width - this.width*0.25)/2 }; this.brickRowCount = 5; this.brickColumnCount = 7; this.brickWidth = this.width*0.11; this.brickHeight = 20; this.brickPadding = 10; this.brickOffsetTop = 40; this.brickOffsetLeft = (this.width - (this.brickColumnCount * (this.brickWidth + this.brickPadding)))/2 + this.brickPadding/2;
+                        this.bricks = []; for (let c=0; c<this.brickColumnCount; c++) { this.bricks[c] = []; for (let r=0; r<this.brickRowCount; r++) { this.bricks[c][r] = { x: 0, y: 0, status: 1 }; } }
                     }
-
-                    start() {
-                        this.setupGameObjects();
-                        document.addEventListener('keydown', this.keyDownHandler);
-                        document.addEventListener('keyup', this.keyUpHandler);
-                        document.addEventListener('mousemove', this.mouseMoveHandler);
-                        this.draw();
-                    }
-
-                    stop() {
-                        cancelAnimationFrame(this.animationFrameId);
-                        document.removeEventListener('keydown', this.keyDownHandler);
-                        document.removeEventListener('keyup', this.keyUpHandler);
-                        document.removeEventListener('mousemove', this.mouseMoveHandler);
-                    }
-                    
-                    keyDownHandler(e) { if (e.key === 'Right' || e.key === 'ArrowRight') this.rightPressed = true; else if (e.key === 'Left' || e.key === 'ArrowLeft') this.leftPressed = true; }
-                    keyUpHandler(e) { if (e.key === 'Right' || e.key === 'ArrowRight') this.rightPressed = false; else if (e.key === 'Left' || e.key === 'ArrowLeft') this.leftPressed = false; }
-                    mouseMoveHandler(e) {
-                        const relativeX = e.clientX - this.canvas.getBoundingClientRect().left;
-                        if(relativeX > 0 && relativeX < this.width) this.paddle.x = Math.max(0, Math.min(relativeX - this.paddle.width / 2, this.width - this.paddle.width));
-                    }
-                    
-                    drawBall() { this.ctx.beginPath(); this.ctx.arc(this.ball.x, this.ball.y, this.ball.radius, 0, Math.PI * 2); this.ctx.fillStyle = '#e94560'; this.ctx.fill(); this.ctx.closePath(); }
-                    drawPaddle() { this.ctx.beginPath(); this.ctx.rect(this.paddle.x, this.height - this.paddle.height, this.paddle.width, this.paddle.height); this.ctx.fillStyle = '#0f3460'; this.ctx.fill(); this.ctx.closePath(); }
-                    drawBricks() {
-                        for(let c=0; c<this.brickColumnCount; c++) { for(let r=0; r<this.brickRowCount; r++) { if(this.bricks[c][r].status === 1) {
-                            const brickX = (c * (this.brickWidth + this.brickPadding)) + this.brickOffsetLeft;
-                            const brickY = (r * (this.brickHeight + this.brickPadding)) + this.brickOffsetTop;
-                            this.bricks[c][r].x = brickX; this.bricks[c][r].y = brickY;
-                            this.ctx.beginPath(); this.ctx.rect(brickX, brickY, this.brickWidth, this.brickHeight); this.ctx.fillStyle = `hsl(${200 + r * 15}, 70%, 50%)`; this.ctx.fill(); this.ctx.closePath();
-                        }}}
-                    }
-                    
-                    collisionDetection() {
-                        let totalBricks = 0;
-                        for(let c=0; c<this.brickColumnCount; c++) { for(let r=0; r<this.brickRowCount; r++) {
-                            const b = this.bricks[c][r];
-                            if(b.status === 1) {
-                                totalBricks++;
-                                if(this.ball.x > b.x && this.ball.x < b.x + this.brickWidth && this.ball.y > b.y && this.ball.y < b.y + this.brickHeight) {
-                                    this.ball.dy = -this.ball.dy; b.status = 0; this.score++; this.scoreEl.textContent = this.score;
-                                }
-                            }
-                        }}
-                         if (totalBricks === 1) { this.gameOver(true); }
-                    }
-
-                    gameOver(isWin) {
-                        this.stop();
-                        const overlay = document.createElement('div');
-                        overlay.className = 'overlay';
-                        overlay.innerHTML = `<h3>${isWin ? 'You Win!' : 'Game Over'}</h3><p>Final Score: ${this.score}</p>`;
-                        gameContent.appendChild(overlay);
-                        overlay.addEventListener('click', () => overlay.remove());
-                    }
-
+                    keyDownHandler(e) { if(e.key==='Right'||e.key==='ArrowRight') this.rightPressed=true; else if(e.key==='Left'||e.key==='ArrowLeft') this.leftPressed=true; }
+                    keyUpHandler(e) { if(e.key==='Right'||e.key==='ArrowRight') this.rightPressed=false; else if(e.key==='Left'||e.key==='ArrowLeft') this.leftPressed=false; }
+                    mouseMoveHandler(e) { const rx = e.clientX - this.canvas.getBoundingClientRect().left; if(rx>0&&rx<this.width) this.paddle.x = Math.max(0, Math.min(rx - this.paddle.width/2, this.width - this.paddle.width)); }
+                    drawBall() { this.ctx.beginPath(); this.ctx.arc(this.ball.x, this.ball.y, this.ball.radius, 0, Math.PI*2); this.ctx.fillStyle = '#e94560'; this.ctx.fill(); this.ctx.closePath(); }
+                    drawPaddle() { this.ctx.beginPath(); this.ctx.rect(this.paddle.x, this.height-this.paddle.height, this.paddle.width, this.paddle.height); this.ctx.fillStyle = '#0f3460'; this.ctx.fill(); this.ctx.closePath(); }
+                    drawBricks() { for(let c=0; c<this.brickColumnCount; c++) { for(let r=0; r<this.brickRowCount; r++) { if(this.bricks[c][r].status === 1) { const bx = (c * (this.brickWidth + this.brickPadding)) + this.brickOffsetLeft; const by = (r * (this.brickHeight + this.brickPadding)) + this.brickOffsetTop; this.bricks[c][r].x=bx; this.bricks[c][r].y=by; this.ctx.beginPath(); this.ctx.rect(bx, by, this.brickWidth, this.brickHeight); this.ctx.fillStyle = `hsl(${200 + r * 15}, 70%, 50%)`; this.ctx.fill(); this.ctx.closePath(); }}}}
+                    collisionDetection() { let total = 0; for(let c=0; c<this.brickColumnCount; c++) { for(let r=0; r<this.brickRowCount; r++) { const b = this.bricks[c][r]; if(b.status === 1) { total++; if(this.ball.x>b.x && this.ball.x<b.x+this.brickWidth && this.ball.y>b.y && this.ball.y<b.y+this.brickHeight) { this.ball.dy = -this.ball.dy; b.status = 0; this.score++; document.getElementById('breakout-score').textContent = this.score; }}}} if (total === 1 && this.score > 0) { this.handleGameOver(true); }}
+                    handleGameOver(isWin) { this.stop(); gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>${isWin ? 'You Win!' : 'Game Over'}</h3><p>Final Score: ${this.score}</p></div>`); }
                     draw() {
-                        this.ctx.clearRect(0, 0, this.width, this.height);
-                        this.drawBricks(); this.drawBall(); this.drawPaddle(); this.collisionDetection();
-                        
-                        if(this.ball.x + this.ball.dx > this.width - this.ball.radius || this.ball.x + this.ball.dx < this.ball.radius) this.ball.dx = -this.ball.dx;
-                        if(this.ball.y + this.ball.dy < this.ball.radius) this.ball.dy = -this.ball.dy;
-                        else if(this.ball.y + this.ball.dy > this.height - this.ball.radius) {
-                            if(this.ball.x > this.paddle.x && this.ball.x < this.paddle.x + this.paddle.width) { this.ball.dy = -this.ball.dy; } 
-                            else {
-                                this.lives--;
-                                this.livesEl.textContent = this.lives;
-                                if(this.lives <= 0) { this.gameOver(false); return; }
-                                else {
-                                    this.ball.x = this.width / 2; this.ball.y = this.height - 30; this.paddle.x = (this.width - this.paddle.width) / 2;
-                                }
-                            }
+                        this.ctx.clearRect(0, 0, this.width, this.height); this.drawBricks(); this.drawBall(); this.drawPaddle(); this.collisionDetection();
+                        if(this.ball.x+this.ball.dx > this.width-this.ball.radius || this.ball.x+this.ball.dx < this.ball.radius) this.ball.dx = -this.ball.dx;
+                        if(this.ball.y+this.ball.dy < this.ball.radius) this.ball.dy = -this.ball.dy;
+                        else if(this.ball.y+this.ball.dy > this.height-this.ball.radius) {
+                            if(this.ball.x > this.paddle.x && this.ball.x < this.paddle.x+this.paddle.width) { this.ball.dy = -this.ball.dy; }
+                            else { this.lives--; document.getElementById('breakout-lives').textContent = this.lives; if(this.lives <= 0) { this.handleGameOver(false); return; } else { this.ball.x = this.width/2; this.ball.y = this.height-30; this.paddle.x = (this.width-this.paddle.width)/2; } }
                         }
-                        
-                        if(this.rightPressed) this.paddle.x = Math.min(this.paddle.x + 7, this.width - this.paddle.width);
-                        if(this.leftPressed) this.paddle.x = Math.max(0, this.paddle.x - 7);
-                        
+                        if(this.rightPressed) this.paddle.x = Math.min(this.paddle.x+7, this.width - this.paddle.width);
+                        if(this.leftPressed) this.paddle.x = Math.max(0, this.paddle.x-7);
                         this.ball.x += this.ball.dx; this.ball.y += this.ball.dy;
                         this.animationFrameId = requestAnimationFrame(this.draw.bind(this));
                     }
                 }
-                
-                window.breakoutReset = setup;
-                window.breakoutCleanup = () => { if(gameInstance) gameInstance.stop(); };
-                setup();
+                setupCanvasGame('breakout-canvas', `<div class="game-info"><span>Score: <span id="breakout-score">0</span></span><span>Lives: <span id="breakout-lives">3</span></span></div>`, `<p class="instructions">Use mouse or arrow keys to move the paddle.</p>`, BreakoutRunner);
             }
+
+            // --- SUPER JUMPER ---
+            function initSuperJumper() {
+                 class SuperJumperRunner {
+                    constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.keyDownHandler = this.keyDownHandler.bind(this); this.keyUpHandler = this.keyUpHandler.bind(this); }
+                    start() { this.setupGameObjects(); document.addEventListener('keydown', this.keyDownHandler); document.addEventListener('keyup', this.keyUpHandler); this.draw(); }
+                    stop() { cancelAnimationFrame(this.animationFrameId); document.removeEventListener('keydown', this.keyDownHandler); document.removeEventListener('keyup', this.keyUpHandler); }
+                    setupGameObjects() {
+                        const dpr = window.devicePixelRatio || 1; const rect = this.canvas.getBoundingClientRect(); this.canvas.width = rect.width * dpr; this.canvas.height = rect.height * dpr; this.ctx.scale(dpr, dpr); this.width = rect.width; this.height = rect.height;
+                        this.gravity = 0.5; this.keys = {};
+                        this.player = { x: 50, y: this.height - 70, width: 25, height: 40, vx: 0, vy: 0, onGround: false };
+                        this.platforms = [ {x:0, y:this.height-20, width:150, height:20}, {x:200, y:this.height-80, width:100, height:20}, {x:350, y:this.height-140, width:100, height:20}, {x:150, y:this.height-220, width:100, height:20}, {x:300, y:this.height-300, width:100, height:20} ];
+                        this.goal = {x: this.width - 60, y: 30, width: 40, height: 40};
+                    }
+                    keyDownHandler(e) { this.keys[e.code] = true; }
+                    keyUpHandler(e) { this.keys[e.code] = false; }
+                    update() {
+                        if (this.keys['ArrowLeft']) this.player.vx = -4; else if (this.keys['ArrowRight']) this.player.vx = 4; else this.player.vx = 0;
+                        this.player.x += this.player.vx;
+                        
+                        this.player.onGround = false;
+                        this.player.vy += this.gravity;
+                        
+                        const prevY = this.player.y;
+                        this.player.y += this.player.vy;
+                        
+                        this.platforms.forEach(p => {
+                           const isOverlappingX = this.player.x < p.x + p.width && this.player.x + this.player.width > p.x;
+                           const wasAbove = prevY + this.player.height <= p.y;
+                           const isNowBelow = this.player.y + this.player.height >= p.y;
+                           
+                           if (this.player.vy >= 0 && isOverlappingX && wasAbove && isNowBelow) {
+                               this.player.y = p.y - this.player.height;
+                               this.player.vy = 0;
+                               this.player.onGround = true;
+                           }
+                        });
+
+                        if (this.keys['Space'] && this.player.onGround) { this.player.vy = -12; }
+                        
+                        if(this.player.x < 0) this.player.x = 0; if(this.player.x + this.player.width > this.width) this.player.x = this.width - this.player.width;
+                        if (this.player.x < this.goal.x + this.goal.width && this.player.x + this.player.width > this.goal.x && this.player.y < this.goal.y + this.goal.height && this.player.y + this.player.height > this.goal.y) { this.handleGameOver(true); }
+                        if (this.player.y > this.height) { this.handleGameOver(false); }
+                    }
+                    
+                    drawBackground() {
+                        const sky = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                        sky.addColorStop(0, '#74b9ff'); sky.addColorStop(1, '#a29bfe');
+                        this.ctx.fillStyle = sky; this.ctx.fillRect(0, 0, this.width, this.height);
+                    }
+                    drawPlayer() {
+                        this.ctx.fillStyle = '#d63031'; this.ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
+                        this.ctx.fillStyle = '#e17055'; this.ctx.fillRect(this.player.x + 5, this.player.y + 5, this.player.width - 10, this.player.height - 10);
+                        this.ctx.fillStyle = '#2d3436'; this.ctx.fillRect(this.player.x + (this.player.width * 0.6), this.player.y + 8, 5, 5);
+                    }
+                    drawPlatform(p) {
+                        this.ctx.fillStyle = '#00b894'; this.ctx.fillRect(p.x, p.y, p.width, p.height);
+                        this.ctx.fillStyle = '#006266'; this.ctx.fillRect(p.x, p.y + 5, p.width, p.height - 5);
+                    }
+                     drawGoal() {
+                        this.ctx.fillStyle = '#fdcb6e'; this.ctx.fillRect(this.goal.x, this.goal.y, this.goal.width, this.goal.height);
+                        this.ctx.fillStyle = '#f0932b'; this.ctx.fillRect(this.goal.x + 5, this.goal.y + 5, this.goal.width - 10, this.goal.height - 10);
+                    }
+
+                    draw() {
+                        this.update();
+                        this.drawBackground();
+                        this.platforms.forEach(p => this.drawPlatform(p));
+                        this.drawGoal();
+                        this.drawPlayer();
+                        this.animationFrameId = requestAnimationFrame(this.draw.bind(this));
+                    }
+                    handleGameOver(isWin) { this.stop(); gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>${isWin ? 'You Reached the Goal!' : 'Game Over'}</h3></div>`); }
+                }
+                setupCanvasGame('superjumper-canvas', '', `<p class="instructions">Use Arrow Keys to move and Space to jump. Reach the yellow goal!</p>`, SuperJumperRunner);
+            }
+
+            // --- SPEED RACER ---
+            function initSpeedRacer() {
+                 class SpeedRacerRunner {
+                    constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.keyDownHandler = this.keyDownHandler.bind(this); this.keyUpHandler = this.keyUpHandler.bind(this); }
+                    start() { this.setupGameObjects(); document.addEventListener('keydown', this.keyDownHandler); document.addEventListener('keyup', this.keyUpHandler); this.draw(); }
+                    stop() { cancelAnimationFrame(this.animationFrameId); document.removeEventListener('keydown', this.keyDownHandler); document.removeEventListener('keyup', this.keyUpHandler); }
+                    setupGameObjects() {
+                        const dpr = window.devicePixelRatio || 1; const rect = this.canvas.getBoundingClientRect(); this.canvas.width = rect.width * dpr; this.canvas.height = rect.height * dpr; this.ctx.scale(dpr, dpr); this.width = rect.width; this.height = rect.height;
+                        this.keys = {}; this.isFinished = false;
+                        this.car = { x: this.width/2, y: this.height - 80, width: 25, height: 45, speed: 0, angle: 0, maxSpeed: 6, turnSpeed: 0.05, friction: 0.95 };
+                        this.startTime = Date.now();
+                        this.checkpoints = [ {x: this.width/2, y: this.height - 150, passed: false}, {x: 100, y: this.height/2, passed: false}, {x: this.width/2, y: 100, passed: false}, {x: this.width - 100, y: this.height/2, passed: false} ];
+                        this.currentCheckpoint = 0;
+                    }
+                    keyDownHandler(e) { this.keys[e.code] = true; }
+                    keyUpHandler(e) { this.keys[e.code] = false; }
+                    update() {
+                        if (this.isFinished) return;
+                        if (this.keys['ArrowUp']) this.car.speed = Math.min(this.car.maxSpeed, this.car.speed + 0.2);
+                        if (this.keys['ArrowDown']) this.car.speed = Math.max(-this.car.maxSpeed/2, this.car.speed - 0.2);
+                        if (this.car.speed !== 0) {
+                            const direction = this.car.speed > 0 ? 1 : -1;
+                            if (this.keys['ArrowLeft']) this.car.angle -= this.car.turnSpeed * direction;
+                            if (this.keys['ArrowRight']) this.car.angle += this.car.turnSpeed * direction;
+                        }
+                        this.car.speed *= this.car.friction;
+                        this.car.x += Math.sin(this.car.angle) * this.car.speed;
+                        this.car.y -= Math.cos(this.car.angle) * this.car.speed;
+                        
+                        const trackLeft = (this.width / 2) - this.width/2.5; const trackRight = (this.width / 2) + this.width/2.5;
+                        if(this.car.x < trackLeft || this.car.x > trackRight - this.car.width/2 || this.car.y < 0 || this.car.y > this.height - this.car.height/2) { this.car.speed *= 0.5; }
+
+                        if (this.currentCheckpoint >= this.checkpoints.length) return;
+                        const cp = this.checkpoints[this.currentCheckpoint];
+                        if (Math.hypot(this.car.x - cp.x, this.car.y - cp.y) < 50) {
+                           cp.passed = true;
+                           this.currentCheckpoint++;
+                           if (this.currentCheckpoint >= this.checkpoints.length) {
+                               const timeTaken = ((Date.now() - this.startTime) / 1000).toFixed(2);
+                               this.handleGameOver(true, timeTaken);
+                           }
+                        }
+                    }
+                    drawTrack() {
+                        this.ctx.fillStyle = '#6ab04c'; this.ctx.fillRect(0,0,this.width, this.height);
+                        const trackLeft = (this.width / 2) - this.width/2.5; const trackWidth = this.width/1.25;
+                        this.ctx.fillStyle = '#576574'; this.ctx.fillRect(trackLeft, 0, trackWidth, this.height);
+                        // Finish line
+                        for(let i = 0; i < 10; i++) {
+                            this.ctx.fillStyle = i % 2 === 0 ? '#fff' : '#000';
+                            this.ctx.fillRect((this.width/2 - 50) + i * 10, this.height - 100, 10, 20);
+                        }
+                    }
+                    drawCar() {
+                        this.ctx.save();
+                        this.ctx.translate(this.car.x, this.car.y);
+                        this.ctx.rotate(this.car.angle);
+                        this.ctx.fillStyle = '#d63031'; // Body
+                        this.ctx.fillRect(-this.car.width/2, -this.car.height/2, this.car.width, this.car.height);
+                        this.ctx.fillStyle = '#2d3436'; // Top
+                        this.ctx.fillRect(-this.car.width/2 + 5, -this.car.height/2 + 5, this.car.width - 10, this.car.height - 20);
+                        this.ctx.fillStyle = '#fdcb6e'; // Headlights
+                        this.ctx.fillRect(-this.car.width/2, -this.car.height/2 - 2, 5, 4);
+                        this.ctx.fillRect(this.car.width/2 - 5, -this.car.height/2 - 2, 5, 4);
+                        this.ctx.restore();
+                    }
+                     drawCheckpoints() {
+                        this.checkpoints.forEach((cp, i) => {
+                            if (!cp.passed) {
+                                this.ctx.fillStyle = i === this.currentCheckpoint ? 'rgba(255, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.1)';
+                                this.ctx.beginPath(); this.ctx.arc(cp.x, cp.y, 40, 0, Math.PI * 2); this.ctx.fill();
+                            }
+                        });
+                    }
+                    draw() {
+                        this.update();
+                        this.ctx.clearRect(0,0,this.width,this.height);
+                        this.drawTrack();
+                        this.drawCheckpoints();
+                        this.drawCar();
+                        if (!this.isFinished) {
+                           const timer = ((Date.now() - this.startTime) / 1000).toFixed(2);
+                           document.getElementById('speedracer-time').textContent = timer;
+                        }
+                        this.animationFrameId = requestAnimationFrame(this.draw.bind(this));
+                    }
+                    handleGameOver(isWin, time) { this.isFinished = true; this.stop(); gameContent.insertAdjacentHTML('beforeend', `<div class="overlay"><h3>${isWin ? 'Finish!' : 'Game Over'}</h3><p>Your time: ${time}s</p></div>`); }
+                }
+                setupCanvasGame('speedracer-canvas', `<div class="game-info"><span>Time: <span id="speedracer-time">0.00</span>s</span></div>`, `<p class="instructions">Use Arrow Keys to drive. Complete the lap as fast as possible!</p>`, SpeedRacerRunner);
+            }
+
         });
     </script>
 </body>
